@@ -1,13 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import "./App.css";
 
 function App() {
   const apiURL = "https://random-word-api.herokuapp.com/word?length=5";
   // Default for now: JAMES
-  const [hiddenWord, setHiddenWord] = useState("JAMES");
-  const [rowToCheck, setRowToCheck] = useState(0);
+  const [hiddenWord, setHiddenWord] = useState("");
+  const rowToCheckRef: RefObject<number> = useRef(0);
   const [currentAnswer, setCurrentAnswer] = useState<string[]>([]);
-  const [isPerfect, setIsPerfect] = useState(false);
+  const [gameState, setGameState] = useState("idle");
   // const [currentStatus, setCurrentStatus] = useState<string[]>([]);
 
   const [boxes, setBoxes] = useState<string[][]>([
@@ -35,48 +35,54 @@ function App() {
 
   const checkAnswer = () => {
     const newBoxes = [...boxes];
-    const updateRow = [...newBoxes[rowToCheck]];
-    let count = 0;
+    const updateRow = [...newBoxes[rowToCheckRef.current]];
+    let nextRowToCheck =
+      rowToCheckRef.current < 5 ? rowToCheckRef.current + 1 : rowToCheckRef.current;
+    const updateSecondRow = [...newBoxes[nextRowToCheck]];
+    console.log(`Current: ${rowToCheckRef.current} | Next: ${nextRowToCheck}`);
 
-    boxes[rowToCheck]
-      .filter((w) => w !== "open" && w !== "checked" && w !== "unchecked")
-      .forEach((_, idx) => {
-        if (hiddenWord[idx] === currentAnswer[idx]) {
-          updateRow[idx] = "correct";
-          count++;
-        } else if (hiddenWord.includes(currentAnswer[idx])) {
-          updateRow[idx] = "misplaced";
-        } else {
-          updateRow[idx] = "incorrect";
-        }
-      });
+    let correctLetterCount = 0;
+    let tryCount = 0;
 
-    if (count === 5) {
-      setIsPerfect(true);
+    if (tryCount <= 5) {
+      boxes[rowToCheckRef.current]
+        .filter((w) => w !== "open" && w !== "checked" && w !== "unchecked")
+        .forEach((_, idx) => {
+          if (hiddenWord[idx] === currentAnswer[idx]) {
+            updateRow[idx] = "correct";
+            correctLetterCount++;
+          } else if (hiddenWord.includes(currentAnswer[idx])) {
+            updateRow[idx] = "misplaced";
+          } else {
+            updateRow[idx] = "incorrect";
+          }
+
+          tryCount++;
+        });
     }
-    console.log(`Early count: ${count}`);
 
-    if (!isPerfect) {
+    if (correctLetterCount === 5 && tryCount <= 5) {
+      setGameState("win");
+    }
+
+    if (gameState !== "win") {
       updateRow[5] = "checked";
-      newBoxes[rowToCheck] = updateRow;
-      const updateSecondRow = [...newBoxes[1]];
+      newBoxes[rowToCheckRef.current] = updateRow;
       updateSecondRow[5] = "open";
-      newBoxes[1] = updateSecondRow;
+      newBoxes[nextRowToCheck] = updateSecondRow;
+      correctLetterCount = 0;
 
-      count = 0;
-      setRowToCheck((c) => c + 1);
+      rowToCheckRef.current++;
       setCurrentAnswer([]);
       setBoxes(newBoxes);
     }
-
-    console.log(`End count: ${count}`);
   };
 
   return (
     <div className="flex min-h-screen w-full flex-col items-center justify-center">
       <div className="flex flex-col items-center justify-center">
         <h1 className="text-blue-500">WORDLE</h1>
-        {/* <h2>Hidden Word: {hiddenWord}</h2> */}
+        <h2>Hidden Word: {hiddenWord}</h2>
       </div>
       <div className="flex flex-col gap-[4px]">
         {boxes.map((_, idx) => (
@@ -106,7 +112,7 @@ function App() {
           </div>
         ))}
       </div>
-      {isPerfect && <h2>YOU WIN!</h2>}
+      {gameState === "win" && <h2>YOU WIN!</h2>}
       <button className="mt-[10px]" onClick={checkAnswer}>
         Enter
       </button>
